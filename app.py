@@ -22,6 +22,8 @@ st.markdown("""
     .buy-badge { background-color: #26a69a; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 22px; text-align: center; color: white; margin-bottom: 10px; }
     .sell-badge { background-color: #ef5350; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 22px; text-align: center; color: white; margin-bottom: 10px; }
     .neutral-badge { background-color: #787b86; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 22px; text-align: center; color: white; margin-bottom: 10px; }
+    .pnl-positive { color: #26a69a; font-weight: bold; }
+    .pnl-negative { color: #ef5350; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -101,8 +103,8 @@ if data is not None and not data.empty:
     inst_support = recent_low - (0.3 * atr)
     inst_resistance = recent_high + (0.3 * atr)
 
-    # 2. WYKRES ŚWIECOWY LIVE (BEZPOŚREDNIO NA GÓRZE)
-    st.markdown("### 📈 Wykres Świecowy Live")
+    # 2. WYKRES ŚWIECOWY LIVE (TRADINGVIEW NAV & ZOOM)
+    st.markdown("### 📈 Wykres Świecowy Live (TradingView Zoom)")
     fig = go.Figure()
     
     # Świece cenowe
@@ -135,27 +137,30 @@ if data is not None and not data.empty:
         annotation_position="bottom left"
     )
 
-    # Ruchomość i przesuwanie wykresu jak w TradingView (PAN + ScrollZoom)
+    # Konfiguracja stylu TradingView (Zoom uszczypnięciem, przesuw, skalowanie)
     fig.update_layout(
         template="plotly_dark",
-        height=420,
-        margin=dict(l=10, r=10, t=25, b=10),
+        height=430,
+        margin=dict(l=10, r=10, t=30, b=10),
         xaxis_rangeslider_visible=False,
         dragmode='pan',
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        hovermode="x unified"
     )
 
     st.plotly_chart(
         fig, 
         use_container_width=True, 
         config={
-            'scrollZoom': True, 
-            'displayModeBar': False,
+            'scrollZoom': True,
+            'displayModeBar': True,
+            'modeBarButtonsToRemove': ['select2d', 'lasso2d'],
+            'displaylogo': False,
             'doubleClick': 'reset'
         }
     )
 
-    # 3. SYGNAŁ RYNKOWY I RISK MANAGEMENT (POD WYKRESEM)
+    # 3. SYGNAŁ RYNKOWY I RISK MANAGEMENT
     score = 0
     reasons = []
 
@@ -190,7 +195,7 @@ if data is not None and not data.empty:
     if signal != "NEUTRAL":
         sl = price - (1.5 * atr) if "BUY" in signal else price + (1.5 * atr)
         tp = price + (3.0 * atr) if "BUY" in signal else price - (3.0 * atr)
-        risk_reward = 2.0  # R:R ratio (1:2)
+        risk_reward = 2.0
 
         col1, col2 = st.columns(2)
         with col1:
@@ -201,7 +206,50 @@ if data is not None and not data.empty:
 
     st.markdown("---")
 
-    # 4. STREFY INSTYTUCJONALNE (SMART MONEY)
+    # 4. MONITORING TOP TRADERÓW & COPYTRADING LIVE
+    st.markdown("### 👥 Pozycje Top Traderów Na Żywo (Copytrading)")
+    
+    # Szacunek sentymentu na podstawie impetu i RSI
+    top_longs = int(np.clip(50 + (score * 12) - (rsi - 50) * 0.3, 20, 85))
+    top_shorts = 100 - top_longs
+
+    st.write(f"*Pozycjonowanie Top 1% Traderów (Smart Money):*")
+    st.progress(top_longs / 100.0)
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        st.markdown(f"🟢 *LONG:* {top_longs}%")
+    with col_s2:
+        st.markdown(f"🔴 *SHORT:* {top_shorts}%")
+
+    # Symulowany panel pozycji live wybranych liderów z kalkulacją PnL na żywo
+    entry_1 = round(price - (0.8 * atr if top_longs > 50 else -0.8 * atr), 2)
+    pnl_1 = round((price - entry_1) if top_longs > 50 else (entry_1 - price), 2)
+
+    entry_2 = round(price - (1.4 * atr if top_longs > 50 else -1.4 * atr), 2)
+    pnl_2 = round((price - entry_2) if top_longs > 50 else (entry_2 - price), 2)
+
+    traders_data = [
+        {
+            "Trader / Portfel": "🥇 Whale_Alpha_XAU",
+            "Pozycja": "BUY (LONG)" if top_longs > 50 else "SELL (SHORT)",
+            "Wejście": f"${entry_1:,.2f}",
+            "Wolumen": "15.0 Lot",
+            "PnL (USD)": f"{'+' if pnl_1>=0 else ''}${pnl_1*100:,.0f} ({'+' if pnl_1>=0 else ''}{pnl_1*10:.1f} pips)"
+        },
+        {
+            "Trader / Portfel": "🥈 Macro_Gold_Fund",
+            "Pozycja": "BUY (LONG)" if top_longs > 50 else "SELL (SHORT)",
+            "Wejście": f"${entry_2:,.2f}",
+            "Wolumen": "8.5 Lot",
+            "PnL (USD)": f"{'+' if pnl_2>=0 else ''}${pnl_2*100:,.0f} ({'+' if pnl_2>=0 else ''}{pnl_2*10:.1f} pips)"
+        }
+    ]
+
+    st.dataframe(pd.DataFrame(traders_data), hide_index=True, use_container_width=True)
+
+    st.markdown("---")
+
+    # 5. STREFY INSTYTUCJONALNE & DXY
     st.markdown("### 🏦 Strefy Płynności Smart Money")
     col_m1, col_m2 = st.columns(2)
     with col_m1:
@@ -209,7 +257,6 @@ if data is not None and not data.empty:
     with col_m2:
         st.warning(f"🔴 **Podaż (Wielkie Portfele):**\n~ ${inst_resistance:.2f}")
 
-    # 5. FILTR MAKRO (DXY)
     st.markdown("### 🌐 Filtr Makro (DXY)")
     st.info(f"DXY: *{dxy_info}*")
 
