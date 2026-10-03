@@ -103,11 +103,11 @@ if data is not None and not data.empty:
     inst_support = recent_low - (0.3 * atr)
     inst_resistance = recent_high + (0.3 * atr)
 
-    # 2. WYKRES ŚWIECOWY LIVE (TRADINGVIEW NAV & ZOOM)
-    st.markdown("### 📈 Wykres Świecowy Live (TradingView Zoom)")
+    # 2. WYKRES ŚWIECOWY LIVE (CELOWNIK DOTYKOWY + PODGLĄD CENY)
+    st.markdown("### 📈 Wykres Świecowy Live")
     fig = go.Figure()
     
-    # Świece cenowe
+    # Świece cenowe z podglądem ceny po przeciągnięciu palcem
     fig.add_trace(go.Candlestick(
         x=data.index,
         open=data['Open'],
@@ -137,7 +137,25 @@ if data is not None and not data.empty:
         annotation_position="bottom left"
     )
 
-    # Konfiguracja stylu TradingView (Zoom uszczypnięciem, przesuw, skalowanie)
+    # LINIE CELOWNIKA (SPICELINES) - Wyświetlają cenę i punkt pod palcem
+    fig.update_xaxes(
+        showspikes=True,
+        spikecolor="#00e676",
+        spikesnap="cursor",
+        spikemode="across",
+        spikedash="dash",
+        spikethickness=1
+    )
+    fig.update_yaxes(
+        showspikes=True,
+        spikecolor="#00e676",
+        spikesnap="cursor",
+        spikemode="across",
+        spikedash="dash",
+        spikethickness=1
+    )
+
+    # Układ TradingView z aktywnym podglądem na żywo po dotknięciu
     fig.update_layout(
         template="plotly_dark",
         height=430,
@@ -145,7 +163,7 @@ if data is not None and not data.empty:
         xaxis_rangeslider_visible=False,
         dragmode='pan',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        hovermode="x unified"
+        hovermode="x unified"  # Pokazuje kompletne okienko cenowe przy przesuwaniu palcem
     )
 
     st.plotly_chart(
@@ -202,14 +220,13 @@ if data is not None and not data.empty:
             st.error(f"🛑 Stop Loss: *${sl:.2f}*")
         with col2:
             st.success(f"🎯 Take Profit: *${tp:.2f}*")
-        st.caption(f"⚖️ Stosunek Zysku do Ryzyka (R:R): *1 : {risk_reward:.1f}*")
+        st.caption(f"⚖️️ Stosunek Zysku do Ryzyka (R:R): *1 : {risk_reward:.1f}*")
 
     st.markdown("---")
 
     # 4. MONITORING TOP TRADERÓW & COPYTRADING LIVE
     st.markdown("### 👥 Pozycje Top Traderów Na Żywo (Copytrading)")
     
-    # Szacunek sentymentu na podstawie impetu i RSI
     top_longs = int(np.clip(50 + (score * 12) - (rsi - 50) * 0.3, 20, 85))
     top_shorts = 100 - top_longs
 
@@ -221,7 +238,7 @@ if data is not None and not data.empty:
     with col_s2:
         st.markdown(f"🔴 *SHORT:* {top_shorts}%")
 
-    # Symulowany panel pozycji live wybranych liderów z kalkulacją PnL na żywo
+    # Symulowane pozycje na żywo z przeliczeniem zysku/straty
     entry_1 = round(price - (0.8 * atr if top_longs > 50 else -0.8 * atr), 2)
     pnl_1 = round((price - entry_1) if top_longs > 50 else (entry_1 - price), 2)
 
