@@ -19,9 +19,9 @@ st_autorefresh(interval=15000, limit=None, key="gold_autorefresh")
 st.markdown("""
     <style>
     .stApp { max-width: 600px; margin: 0 auto; }
-    .buy-badge { background-color: #26a69a; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 22px; text-align: center; color: white; }
-    .sell-badge { background-color: #ef5350; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 22px; text-align: center; color: white; }
-    .neutral-badge { background-color: #787b86; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 22px; text-align: center; color: white; }
+    .buy-badge { background-color: #26a69a; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 22px; text-align: center; color: white; margin-bottom: 10px; }
+    .sell-badge { background-color: #ef5350; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 22px; text-align: center; color: white; margin-bottom: 10px; }
+    .neutral-badge { background-color: #787b86; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 22px; text-align: center; color: white; margin-bottom: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -67,8 +67,10 @@ def load_market_data(interval_choice):
 
     return df, dxy_trend
 
+# Nagłówek aplikacji
 st.title("🥇 XAU/USD Live Assistant")
 
+# Pasek wyboru interwału
 interval = st.select_slider(
     "Interwał czasowy:",
     options=["1m", "5m", "15m", "1h", "4h", "1d"],
@@ -86,12 +88,74 @@ if data is not None and not data.empty:
     rsi = float(latest['RSI']) if not np.isnan(latest['RSI']) else 50.0
     atr = float(latest['ATR']) if not np.isnan(latest['ATR']) else 5.0
 
+    # 1. CENA GŁÓWNA NA GÓRZE
     st.metric(
         label="Cena Złota (XAUUSD)",
         value=f"${price:,.2f}",
         delta=f"{price_change:+.2f} USD"
     )
 
+    # Obliczanie stref Smart Money i pułapek
+    recent_high = float(data['High'].rolling(20).max().iloc[-1])
+    recent_low = float(data['Low'].rolling(20).min().iloc[-1])
+    inst_support = recent_low - (0.3 * atr)
+    inst_resistance = recent_high + (0.3 * atr)
+
+    # 2. WYKRES ŚWIECOWY LIVE (BEZPOŚREDNIO NA GÓRZE)
+    st.markdown("### 📈 Wykres Świecowy Live")
+    fig = go.Figure()
+    
+    # Świece cenowe
+    fig.add_trace(go.Candlestick(
+        x=data.index,
+        open=data['Open'],
+        high=data['High'],
+        low=data['Low'],
+        close=data['Close'],
+        name="XAUUSD"
+    ))
+    
+    # Średnie EMA
+    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_9'], mode='lines', name='EMA 9', line=dict(color='orange', width=1.5)))
+    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_21'], mode='lines', name='EMA 21', line=dict(color='cyan', width=1.5)))
+
+    # Poziome linie pułapek płynności (Smart Money)
+    fig.add_hline(
+        y=inst_resistance, 
+        line_dash="dash", 
+        line_color="#ef5350", 
+        annotation_text="🔴 Pułapka Podaży (Sell Stop)", 
+        annotation_position="top left"
+    )
+    fig.add_hline(
+        y=inst_support, 
+        line_dash="dash", 
+        line_color="#26a69a", 
+        annotation_text="🟢 Pułapka Popytu (Buy Stop)", 
+        annotation_position="bottom left"
+    )
+
+    # Ruchomość i przesuwanie wykresu jak w TradingView (PAN + ScrollZoom)
+    fig.update_layout(
+        template="plotly_dark",
+        height=420,
+        margin=dict(l=10, r=10, t=25, b=10),
+        xaxis_rangeslider_visible=False,
+        dragmode='pan',
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+
+    st.plotly_chart(
+        fig, 
+        use_container_width=True, 
+        config={
+            'scrollZoom': True, 
+            'displayModeBar': False,
+            'doubleClick': 'reset'
+        }
+    )
+
+    # 3. SYGNAŁ RYNKOWY I RISK MANAGEMENT (POD WYKRESEM)
     score = 0
     reasons = []
 
@@ -115,7 +179,7 @@ if data is not None and not data.empty:
     elif score <= -2:
         signal = "SELL (SHORT)"
 
-    st.markdown("### 🎯 Sygnał rynkowy")
+    st.markdown("### 🎯 Sygnał Rynkowy")
     if signal == "BUY (LONG)":
         st.markdown('<div class="buy-badge">🚀 KUPUJ (LONG)</div>', unsafe_allow_html=True)
     elif signal == "SELL (SHORT)":
@@ -123,80 +187,33 @@ if data is not None and not data.empty:
     else:
         st.markdown('<div class="neutral-badge">⏳ NEUTRALNY (CZEKAJ)</div>', unsafe_allow_html=True)
 
-    st.write("")
-
     if signal != "NEUTRAL":
         sl = price - (1.5 * atr) if "BUY" in signal else price + (1.5 * atr)
         tp = price + (3.0 * atr) if "BUY" in signal else price - (3.0 * atr)
+        risk_reward = 2.0  # R:R ratio (1:2)
 
         col1, col2 = st.columns(2)
         with col1:
             st.error(f"🛑 Stop Loss: *${sl:.2f}*")
         with col2:
             st.success(f"🎯 Take Profit: *${tp:.2f}*")
-
-    # Obliczanie poziomów instytucjonalnych i pułapek (Smart Money)
-    recent_high = float(data['High'].rolling(20).max().iloc[-1])
-    recent_low = float(data['Low'].rolling(20).min().iloc[-1])
-    
-    inst_support = recent_low - (0.3 * atr)
-    inst_resistance = recent_high + (0.3 * atr)
-
-    st.markdown("### 🏦 Strefy Instytucjonalne i Pułapki Płynności")
-    col_m1, col_m2 = st.columns(2)
-    with col_m1:
-        st.info(f"🟢 **Pułapka / Popyt (Buy Stop / Low):**\n~ ${inst_support:.2f}")
-    with col_m2:
-        st.warning(f"🔴 **Pułapka / Podaż (Sell Stop / High):**\n~ ${inst_resistance:.2f}")
-
-    # --- WYKRES ŚWIECOWY Z NANIESIONYMI PUŁAPKAMI ---
-    st.markdown("### 📈 Wykres Świecowy Live + Smart Money")
-    fig = go.Figure()
-    
-    # Świece cenowe
-    fig.add_trace(go.Candlestick(
-        x=data.index,
-        open=data['Open'],
-        high=data['High'],
-        low=data['Low'],
-        close=data['Close'],
-        name="XAUUSD"
-    ))
-    
-    # Średnie EMA
-    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_9'], mode='lines', name='EMA 9', line=dict(color='orange', width=1.5)))
-    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_21'], mode='lines', name='EMA 21', line=dict(color='cyan', width=1.5)))
-
-    # Dodanie poziomów pułapek (Smart Money) jako poziome linie na wykresie
-    fig.add_hline(
-        y=inst_resistance, 
-        line_dash="dash", 
-        line_color="#ef5350", 
-        annotation_text="🔴 Pułapka Podaży (Wielkie Portfele)", 
-        annotation_position="top left"
-    )
-    fig.add_hline(
-        y=inst_support, 
-        line_dash="dash", 
-        line_color="#26a69a", 
-        annotation_text="🟢 Pułapka Popytu (Wielkie Portfele)", 
-        annotation_position="bottom left"
-    )
-
-    fig.update_layout(
-        template="plotly_dark",
-        height=400,
-        margin=dict(l=10, r=10, t=25, b=10),
-        xaxis_rangeslider_visible=False,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
+        st.caption(f"⚖️ Stosunek Zysku do Ryzyka (R:R): *1 : {risk_reward:.1f}*")
 
     st.markdown("---")
+
+    # 4. STREFY INSTYTUCJONALNE (SMART MONEY)
+    st.markdown("### 🏦 Strefy Płynności Smart Money")
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+        st.info(f"🟢 **Popyt (Wielkie Portfele):**\n~ ${inst_support:.2f}")
+    with col_m2:
+        st.warning(f"🔴 **Podaż (Wielkie Portfele):**\n~ ${inst_resistance:.2f}")
+
+    # 5. FILTR MAKRO (DXY)
     st.markdown("### 🌐 Filtr Makro (DXY)")
     st.info(f"DXY: *{dxy_info}*")
 
+    # EXPANDERY Z DODATKOWYMI DANYMI
     with st.expander("🧮 Kalkulator wielkości pozycji"):
         capital = st.number_input("Kapitał (USD):", value=2000, step=100)
         risk_percent = st.slider("Ryzyko (%):", 0.5, 5.0, 1.0)
@@ -215,4 +232,4 @@ if data is not None and not data.empty:
         st.write(f"• RSI: {rsi:.2f} | ATR: {atr:.2f}")
 
 else:
-    st.error("Błąd pobierania danych.")
+    st.error("Błąd pobierania danych z rynku.")
