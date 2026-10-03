@@ -103,11 +103,20 @@ if data is not None and not data.empty:
     inst_support = recent_low - (0.3 * atr)
     inst_resistance = recent_high + (0.3 * atr)
 
-    # 2. WYKRES ŚWIECOWY LIVE (CENA PODĄŻA ZA KURSOREM)
+    # 2. WYKRES ŚWIECOWY LIVE (CENA WIDOCZNA RÓWNIEŻ ZA ŚWIECZKAMI)
     st.markdown("### 📈 Wykres Świecowy Live")
+
+    # Rozszerzenie osi czasowej w przyszłość (puste miejsce za ostatnią świeczką)
+    last_date = data.index[-1]
+    time_step = data.index[-1] - data.index[-2] if len(data) > 1 else pd.Timedelta(minutes=15)
+    future_dates = [last_date + (i * time_step) for i in range(1, 30)]
+    
+    all_dates = list(data.index) + future_dates
+    all_prices = list(data['Close']) + [price] * len(future_dates)
+
     fig = go.Figure()
     
-    # Świece cenowe z pływającym okienkiem cenowym tuż przy kursorze
+    # Świece cenowe (bez nakładania napisów OHLC)
     fig.add_trace(go.Candlestick(
         x=data.index,
         open=data['Open'],
@@ -115,19 +124,30 @@ if data is not None and not data.empty:
         low=data['Low'],
         close=data['Close'],
         name="XAUUSD",
-        hovertemplate="<b>O:</b> $\%{open:.2f}<br><b>H:</b>$%{high:.2f}<br><b>L:</b> $\%{low:.2f}<br><b>C:</b>$%{close:.2f}<extra></extra>"
+        hoverinfo="skip"
     ))
     
-    # Średnie EMA
+    # Niewidzialna ścieżka interaktywna działająca też ZA świeczkami po prawej stronie
+    fig.add_trace(go.Scatter(
+        x=all_dates,
+        y=all_prices,
+        mode='lines',
+        line=dict(color='rgba(0,0,0,0)', width=0),
+        name='',
+        hovertemplate="<b>$ %{y:.2f}</b><extra></extra>",
+        showlegend=False
+    ))
+
+    # Średnie EMA (bez nakładania napisów)
     fig.add_trace(go.Scatter(
         x=data.index, y=data['EMA_9'], mode='lines', name='EMA 9', 
         line=dict(color='orange', width=1.5),
-        hovertemplate="<b>EMA 9:</b> $%{y:.2f}<extra></extra>"
+        hoverinfo="skip"
     ))
     fig.add_trace(go.Scatter(
         x=data.index, y=data['EMA_21'], mode='lines', name='EMA 21', 
         line=dict(color='cyan', width=1.5),
-        hovertemplate="<b>EMA 21:</b> $%{y:.2f}<extra></extra>"
+        hoverinfo="skip"
     ))
 
     # Poziome linie pułapek płynności (Smart Money)
@@ -146,7 +166,7 @@ if data is not None and not data.empty:
         annotation_position="bottom left"
     )
 
-    # LINIE CELOWNIKA (SPICELINES) - Podążają dokładnie za kursor/palcem
+    # LINIE CELOWNIKA (SPICELINES) - Śledzą kursor/palec na całym wykresie
     fig.update_xaxes(
         showspikes=True,
         spikecolor="#00e676",
@@ -164,7 +184,7 @@ if data is not None and not data.empty:
         spikethickness=1
     )
 
-    # Ustawienie trybu hover tak, by dymek z ceną znajdował się tuż przy kursorze
+    # Formatowanie wyłącznie zwięzłej kwoty przy kursorze
     fig.update_layout(
         template="plotly_dark",
         height=430,
@@ -172,12 +192,12 @@ if data is not None and not data.empty:
         xaxis_rangeslider_visible=False,
         dragmode='pan',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        hovermode="x",  # Dymek z ceną podąża dokładnie za kursor / palcem
+        hovermode="x",
         hoverlabel=dict(
-            bgcolor="#1e222d",
-            font_size=12,
-            font_family="sans-serif",
-            bordercolor="#00e676"
+            bgcolor="#00e676",
+            font_size=13,
+            font_color="#000000",
+            font_family="sans-serif"
         )
     )
 
