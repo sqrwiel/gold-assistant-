@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
+import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
 
 # Ustawienia pod ekrany mobilne
@@ -68,7 +69,6 @@ def load_market_data(interval_choice):
 
 st.title("🥇 XAU/USD Live Assistant")
 
-# Płynny wybór interwału bezpośrednio na górze
 interval = st.select_slider(
     "Interwał czasowy:",
     options=["1m", "5m", "15m", "1h", "4h", "1d"],
@@ -134,6 +134,64 @@ if data is not None and not data.empty:
             st.error(f"🛑 Stop Loss: *${sl:.2f}*")
         with col2:
             st.success(f"🎯 Take Profit: *${tp:.2f}*")
+
+    # Obliczanie poziomów instytucjonalnych i pułapek (Smart Money)
+    recent_high = float(data['High'].rolling(20).max().iloc[-1])
+    recent_low = float(data['Low'].rolling(20).min().iloc[-1])
+    
+    inst_support = recent_low - (0.3 * atr)
+    inst_resistance = recent_high + (0.3 * atr)
+
+    st.markdown("### 🏦 Strefy Instytucjonalne i Pułapki Płynności")
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+        st.info(f"🟢 **Pułapka / Popyt (Buy Stop / Low):**\n~ ${inst_support:.2f}")
+    with col_m2:
+        st.warning(f"🔴 **Pułapka / Podaż (Sell Stop / High):**\n~ ${inst_resistance:.2f}")
+
+    # --- WYKRES ŚWIECOWY Z NANIESIONYMI PUŁAPKAMI ---
+    st.markdown("### 📈 Wykres Świecowy Live + Smart Money")
+    fig = go.Figure()
+    
+    # Świece cenowe
+    fig.add_trace(go.Candlestick(
+        x=data.index,
+        open=data['Open'],
+        high=data['High'],
+        low=data['Low'],
+        close=data['Close'],
+        name="XAUUSD"
+    ))
+    
+    # Średnie EMA
+    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_9'], mode='lines', name='EMA 9', line=dict(color='orange', width=1.5)))
+    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_21'], mode='lines', name='EMA 21', line=dict(color='cyan', width=1.5)))
+
+    # Dodanie poziomów pułapek (Smart Money) jako poziome linie na wykresie
+    fig.add_hline(
+        y=inst_resistance, 
+        line_dash="dash", 
+        line_color="#ef5350", 
+        annotation_text="🔴 Pułapka Podaży (Wielkie Portfele)", 
+        annotation_position="top left"
+    )
+    fig.add_hline(
+        y=inst_support, 
+        line_dash="dash", 
+        line_color="#26a69a", 
+        annotation_text="🟢 Pułapka Popytu (Wielkie Portfele)", 
+        annotation_position="bottom left"
+    )
+
+    fig.update_layout(
+        template="plotly_dark",
+        height=400,
+        margin=dict(l=10, r=10, t=25, b=10),
+        xaxis_rangeslider_visible=False,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("---")
     st.markdown("### 🌐 Filtr Makro (DXY)")
