@@ -114,7 +114,7 @@ if data is not None and not data.empty:
   prev_price = float(prev["Close"])
   price_change = price - prev_price
   rsi = float(latest["RSI"]) if not np.isnan(latest["RSI"]) else 50.0
-  atr = float(latest["ATR"]) if Not np.isnan(latest["ATR"]) else 5.0
+  atr = float(latest["ATR"]) if not np.isnan(latest["ATR"]) else 5.0
 
   # 1. CENA GŁÓWNA NA GÓRZE
   st.metric(
