@@ -129,12 +129,12 @@ if data is not None and not data.empty:
   inst_support = recent_low - (0.3 * atr)
   inst_resistance = recent_high + (0.3 * atr)
 
-  # 2. WYKRES ŚWIECOWY LIVE Z IDEALNIE ZSYNCHRONIZOWANYM CELOWNIKIEM
+  # 2. WYKRES ŚWIECOWY LIVE
   st.markdown("### 📈 Wykres Świecowy Live")
 
   fig = go.Figure()
 
-  # Świece cenowe z dymkiem wskazanym dokładnie na cenie
+  # Świece cenowe (bez stałego przyciągania dymka)
   fig.add_trace(
       go.Candlestick(
           x=data.index,
@@ -143,11 +143,11 @@ if data is not None and not data.empty:
           low=data["Low"],
           close=data["Close"],
           name="XAUUSD",
-          hovertemplate="<b>$ %{close:.2f}</b><extra></extra>",
+          hoverinfo="skip",
       )
   )
 
-  # Średnie EMA (bez nakładania etykiet)
+  # Średnie EMA
   fig.add_trace(
       go.Scatter(
           x=data.index,
@@ -169,6 +169,37 @@ if data is not None and not data.empty:
       )
   )
 
+  # SIATKA POZYCJI KURSORA: Generuje podgląd ceny w dowolnym miejscu wykresu
+  y_min = float(data["Low"].min()) - 30.0
+  y_max = float(data["High"].max()) + 30.0
+
+  last_date = data.index[-1]
+  time_step = (
+      data.index[-1] - data.index[-2]
+      if len(data) > 1
+      else pd.Timedelta(minutes=15)
+  )
+  future_dates = [last_date + (i * time_step) for i in range(1, 30)]
+  all_dates = list(data.index) + future_dates
+
+  # Punktowanie cenowe co 0.25 USD dla najwyższej dokładności
+  price_grid = np.arange(y_min, y_max, 0.25)
+  mesh_x = np.repeat(all_dates, len(price_grid))
+  mesh_y = np.tile(price_grid, len(all_dates))
+
+  # Niewidzialna warstwa śledząca kursor
+  fig.add_trace(
+      go.Scattergl(
+          x=mesh_x,
+          y=mesh_y,
+          mode="markers",
+          marker=dict(size=1, color="rgba(0,0,0,0)"),
+          hovertemplate="<b>$ %{y:.2f}</b><extra></extra>",
+          name="",
+          showlegend=False,
+      )
+  )
+
   # Poziome linie pułapek płynności
   fig.add_hline(
       y=inst_resistance,
@@ -185,20 +216,20 @@ if data is not None and not data.empty:
       annotation_position="bottom left",
   )
 
-  # LINIE CELOWNIKA (SPIKELINES) - Przyciąganie do ceny świecy (hovered data)
+  # LINIE CELOWNIKA (SPIKELINES)
   fig.update_xaxes(
       showspikes=True,
       spikecolor="#00e676",
-      spikesnap="hovered data",
-      spikemode="across+toaxis",
+      spikesnap="cursor",
+      spikemode="across",
       spikedash="dash",
       spikethickness=1,
   )
   fig.update_yaxes(
       showspikes=True,
       spikecolor="#00e676",
-      spikesnap="hovered data",  # Linia celownika idealnie wyrównuje się z kwotą na dymku
-      spikemode="across+toaxis",  # Pokazuje również kwotę na osi Y po lewej
+      spikesnap="cursor",
+      spikemode="across",
       spikedash="dash",
       spikethickness=1,
   )
@@ -212,7 +243,7 @@ if data is not None and not data.empty:
       legend=dict(
           orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
       ),
-      hovermode="x unified",  # Zgodny wskaźnik osi X i Y
+      hovermode="closest",
       hoverlabel=dict(
           bgcolor="#00e676",
           font_size=13,
@@ -347,7 +378,7 @@ if data is not None and not data.empty:
   st.markdown("### 🌐 Filtr Makro (DXY)")
   st.info(f"DXY: *{dxy_info}*")
 
-  # EXPANDERY
+  # EXPANDERY Z DODATKOWYMI DANYMI
   with st.expander("🧮 Kalkulator wielkości pozycji"):
     capital = st.number_input("Kapitał (USD):", value=2000, step=100)
     risk_percent = st.slider("Ryzyko (%):", 0.5, 5.0, 1.0)
