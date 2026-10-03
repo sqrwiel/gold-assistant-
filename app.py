@@ -103,23 +103,32 @@ if data is not None and not data.empty:
     inst_support = recent_low - (0.3 * atr)
     inst_resistance = recent_high + (0.3 * atr)
 
-    # 2. WYKRES ŚWIECOWY LIVE (CELOWNIK DOTYKOWY + PODGLĄD CENY)
+    # 2. WYKRES ŚWIECOWY LIVE (CENA PODĄŻA ZA KURSOREM)
     st.markdown("### 📈 Wykres Świecowy Live")
     fig = go.Figure()
     
-    # Świece cenowe z podglądem ceny po przeciągnięciu palcem
+    # Świece cenowe z pływającym okienkiem cenowym tuż przy kursorze
     fig.add_trace(go.Candlestick(
         x=data.index,
         open=data['Open'],
         high=data['High'],
         low=data['Low'],
         close=data['Close'],
-        name="XAUUSD"
+        name="XAUUSD",
+        hovertemplate="<b>O:</b> $\%{open:.2f}<br><b>H:</b>$%{high:.2f}<br><b>L:</b> $\%{low:.2f}<br><b>C:</b>$%{close:.2f}<extra></extra>"
     ))
     
     # Średnie EMA
-    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_9'], mode='lines', name='EMA 9', line=dict(color='orange', width=1.5)))
-    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_21'], mode='lines', name='EMA 21', line=dict(color='cyan', width=1.5)))
+    fig.add_trace(go.Scatter(
+        x=data.index, y=data['EMA_9'], mode='lines', name='EMA 9', 
+        line=dict(color='orange', width=1.5),
+        hovertemplate="<b>EMA 9:</b> $%{y:.2f}<extra></extra>"
+    ))
+    fig.add_trace(go.Scatter(
+        x=data.index, y=data['EMA_21'], mode='lines', name='EMA 21', 
+        line=dict(color='cyan', width=1.5),
+        hovertemplate="<b>EMA 21:</b> $%{y:.2f}<extra></extra>"
+    ))
 
     # Poziome linie pułapek płynności (Smart Money)
     fig.add_hline(
@@ -137,7 +146,7 @@ if data is not None and not data.empty:
         annotation_position="bottom left"
     )
 
-    # LINIE CELOWNIKA (SPICELINES) - Wyświetlają cenę i punkt pod palcem
+    # LINIE CELOWNIKA (SPICELINES) - Podążają dokładnie za kursor/palcem
     fig.update_xaxes(
         showspikes=True,
         spikecolor="#00e676",
@@ -155,7 +164,7 @@ if data is not None and not data.empty:
         spikethickness=1
     )
 
-    # Układ TradingView z aktywnym podglądem na żywo po dotknięciu
+    # Ustawienie trybu hover tak, by dymek z ceną znajdował się tuż przy kursorze
     fig.update_layout(
         template="plotly_dark",
         height=430,
@@ -163,7 +172,13 @@ if data is not None and not data.empty:
         xaxis_rangeslider_visible=False,
         dragmode='pan',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        hovermode="x unified"  # Pokazuje kompletne okienko cenowe przy przesuwaniu palcem
+        hovermode="x",  # Dymek z ceną podąża dokładnie za kursor / palcem
+        hoverlabel=dict(
+            bgcolor="#1e222d",
+            font_size=12,
+            font_family="sans-serif",
+            bordercolor="#00e676"
+        )
     )
 
     st.plotly_chart(
@@ -220,7 +235,7 @@ if data is not None and not data.empty:
             st.error(f"🛑 Stop Loss: *${sl:.2f}*")
         with col2:
             st.success(f"🎯 Take Profit: *${tp:.2f}*")
-        st.caption(f"⚖️️ Stosunek Zysku do Ryzyka (R:R): *1 : {risk_reward:.1f}*")
+        st.caption(f"⚖ Stosunek Zysku do Ryzyka (R:R): *1 : {risk_reward:.1f}*")
 
     st.markdown("---")
 
